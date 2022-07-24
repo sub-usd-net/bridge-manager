@@ -1,0 +1,10 @@
+cChainRpcUri: "https://api.avax-test.network/ext/bc/C/rpc"
+subnetRpcUri: "https://usd.test.snowgenesis.com/rpc/"
+
+cChainBridgeAdminKeyPath: "<PATH_TO_BRIDGE_ADMIN_KEY>"
+subnetBridgeAdminKeyPath: "<PATH_TO_BRIDGE_ADMIN_KEY>"
+
+## deployments can/will change
+cChainBridgeContractAddress: "0x9e8c87E91104a9379BEcF9d02aB348e336f8197F"
+subnetBridgeContractAddress: "0x1b6ceba69e7b07443f12c35313da7e63c2acee18"
+
