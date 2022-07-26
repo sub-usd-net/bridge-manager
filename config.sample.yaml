@@ -5,6 +5,5 @@ cChainBridgeAdminKeyPath: "<PATH_TO_BRIDGE_ADMIN_KEY>"
 subnetBridgeAdminKeyPath: "<PATH_TO_BRIDGE_ADMIN_KEY>"
 
 ## deployments can/will change
-cChainBridgeContractAddress: "0x9e8c87E91104a9379BEcF9d02aB348e336f8197F"
+cChainBridgeContractAddress: "0x9958a6392ad089c764a3d100056a8ddb00d15613"
 subnetBridgeContractAddress: "0x1b6ceba69e7b07443f12c35313da7e63c2acee18"
-

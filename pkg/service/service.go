@@ -1,10 +1,11 @@
 package service
 
 import (
-	"errors"
+	"fmt"
 	"math/big"
 	"time"
 
+	ethtypes "github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/sub-usd-net/bridge-manager/pkg/types"
 	"go.uber.org/zap"
@@ -91,45 +92,63 @@ func (b *BridgeService) Start() error {
 
 		// c-chain => subnet
 		for id := status.SChainCrossChainDepositId + 1; id <= status.CChainDepositId; id++ {
-			if err := b.completeCChainToSubnetTransfer(big.NewInt(int64(id))); err != nil {
-				if errors.Is(err, errRead) {
-					time.Sleep(retryInterval)
-				} else {
-					return err
-				}
+			shouldAbort, err := b.doCompleteTransfer("C->Subnet", big.NewInt(int64(id)), b.s.Client(), b.c.DepositInfo, b.s.CompleteTransfer)
+			if shouldAbort {
+				return err
+			} else if err != nil {
+				time.Sleep(retryInterval)
 			}
 		}
 
 		// subnet => c-chain
 		for id := status.CChainCrossChainDepositId + 1; id < status.SChainDepositId; id++ {
-			b.completeSubnetToCChainTransfer(big.NewInt(int64(id)))
+			shouldAbort, err := b.doCompleteTransfer("Subnet->>C", big.NewInt(int64(id)), b.c.Client(), b.s.DepositInfo, b.c.CompleteTransfer)
+			if shouldAbort {
+				return err
+			} else if err != nil {
+				time.Sleep(retryInterval)
+			}
 		}
 
 		time.Sleep(pollInterval)
 	}
 }
 
-func (b *BridgeService) completeCChainToSubnetTransfer(depositId *big.Int) error {
-	b.log.Infow("Bridging C-Chain => Subnet", "depositId", depositId)
-	info, err := b.c.DepositInfo(depositId)
+// doCompleteTransfer completes transfer C->Subnet or Subnet->C
+// returns false along with the error in cases where we should abort all further execution
+func (b *BridgeService) doCompleteTransfer(
+	prefix string,
+	depositId *big.Int,
+	transferSideClient *ethclient.Client,
+	getDepositInfo func(*big.Int) (*types.DepositInfo, error),
+	completeTransfer func(*big.Int, *types.DepositInfo) (*ethtypes.Transaction, error)) (bool, error) {
+
+	b.log.Infow(prefix, "depositId", depositId)
+	info, err := getDepositInfo(depositId)
 	if err != nil {
-		b.log.Warnw("Error reading deposit info", "err", err)
-		return errRead
+		b.log.Warnw(fmt.Sprintf("%s: Error reading deposit info", prefix), "err", err)
+		return false, errRead
 	}
-	b.log.Infow("Read Deposit Info",
+
+	b.log.Infow(fmt.Sprintf("%s: Successfuly read deposit Info", prefix),
 		"depositId", depositId, "user", info.User, "amount", info.Amount)
 	if info.User == zeroAddress {
-		return errInvariant
+		return true, errInvariant
 	}
-	tx, err := b.s.CompleteTransfer(depositId, info)
-	if err != nil {
-		return err
-	}
-	b.log.Infow("Submitted completeTransfer tx", "depositId", depositId, "hash", tx.Hash())
-	return err
-}
 
-func (b *BridgeService) completeSubnetToCChainTransfer(depositId *big.Int) {
-	b.log.Infow("Bridging Subnet => C-Chain", "depositId", depositId)
-	// TODO
+	tx, err := completeTransfer(depositId, info)
+	if err != nil {
+		return false, err
+	}
+	b.log.Infow(fmt.Sprintf("%s: Submitted completeTransfer tx", prefix), "depositId", depositId, "hash", tx.Hash())
+
+	ok, err := waitForTx(transferSideClient, tx)
+	if err != nil {
+		return false, err
+	} else if !ok {
+		b.log.Warnw("Transfer tx failure")
+		return true, errTransfer
+	}
+
+	return false, nil
 }

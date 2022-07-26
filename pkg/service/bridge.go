@@ -14,6 +14,7 @@ import (
 )
 
 type readerWriter struct {
+	client *ethclient.Client
 	bridge *bridge.Bridge
 	txOpts *bind.TransactOpts
 }
@@ -29,9 +30,14 @@ func NewBridgeReaderWriter(client *ethclient.Client, address common.Address, adm
 	}
 
 	return &readerWriter{
+		client: client,
 		bridge: bridge,
 		txOpts: txOpts,
 	}, nil
+}
+
+func (r *readerWriter) Client() *ethclient.Client {
+	return r.client
 }
 
 func (r *readerWriter) Status() (*types.BridgeStatus, error) {
