@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	nativeTokenDecimals = big.NewInt(18)
+	nativeTokenDecimals = new(big.Int).Exp(big.NewInt(10), big.NewInt(18), nil)
 	zeroAddress         = common.BigToAddress(big.NewInt(0))
 
 	maxTxWaitTime = time.Second * 30

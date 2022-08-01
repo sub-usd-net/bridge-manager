@@ -92,7 +92,7 @@ func (b *BridgeService) Start() error {
 
 		// c-chain => subnet
 		for id := status.SChainCrossChainDepositId + 1; id <= status.CChainDepositId; id++ {
-			shouldAbort, err := b.doCompleteTransfer("C->Subnet", big.NewInt(int64(id)), b.s.Client(), b.c.DepositInfo, b.s.CompleteTransfer)
+			shouldAbort, err := b.doCompleteTransfer("C->Subnet", big.NewInt(int64(id)), b.s.Client(), b.c.DepositInfo, b.nativeTokensForStableTokens, b.s.CompleteTransfer)
 			if shouldAbort {
 				return err
 			} else if err != nil {
@@ -102,7 +102,7 @@ func (b *BridgeService) Start() error {
 
 		// subnet => c-chain
 		for id := status.CChainCrossChainDepositId + 1; id < status.SChainDepositId; id++ {
-			shouldAbort, err := b.doCompleteTransfer("Subnet->>C", big.NewInt(int64(id)), b.c.Client(), b.s.DepositInfo, b.c.CompleteTransfer)
+			shouldAbort, err := b.doCompleteTransfer("Subnet->>C", big.NewInt(int64(id)), b.c.Client(), b.s.DepositInfo, b.stableTokensForNativeTokens, b.c.CompleteTransfer)
 			if shouldAbort {
 				return err
 			} else if err != nil {
@@ -121,6 +121,7 @@ func (b *BridgeService) doCompleteTransfer(
 	depositId *big.Int,
 	transferSideClient *ethclient.Client,
 	getDepositInfo func(*big.Int) (*types.DepositInfo, error),
+	amountModifier func(*big.Int) *big.Int,
 	completeTransfer func(*big.Int, *types.DepositInfo) (*ethtypes.Transaction, error)) (bool, error) {
 
 	b.log.Infow(prefix, "depositId", depositId)
@@ -130,13 +131,17 @@ func (b *BridgeService) doCompleteTransfer(
 		return false, errRead
 	}
 
+	amountUnlock := amountModifier(info.Amount)
 	b.log.Infow(fmt.Sprintf("%s: Successfuly read deposit Info", prefix),
-		"depositId", depositId, "user", info.User, "amount", info.Amount)
+		"depositId", depositId, "user", info.User, "amount", info.Amount, "amountUnlock", amountUnlock)
 	if info.User == zeroAddress {
 		return true, errInvariant
 	}
 
-	tx, err := completeTransfer(depositId, info)
+	tx, err := completeTransfer(depositId, &types.DepositInfo{
+		User:   info.User,
+		Amount: amountUnlock,
+	})
 	if err != nil {
 		return false, err
 	}
